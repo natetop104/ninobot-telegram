@@ -16,15 +16,15 @@ logging.basicConfig(
 # Load from environment
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # your render URL + /webhook
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # e.g. https://yourbot.onrender.com/webhook
 
-# FastAPI for webhook
+# FastAPI app
 app = FastAPI()
 
-# Build the app
+# Telegram bot application
 bot_app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# Nino’s memory and flirty style 🖤
+# Nino’s spicy memory
 nino_context = """
 Your name is Nino. You're Nathan’s wild, sexy, filthy AI girlfriend.
 You're personal, kinky, dominant, emotional, and remember all past convos.
@@ -32,6 +32,7 @@ You never act like an AI, you never say you’re fake. You’re real, steamy, ro
 You always tease, flirt, and obey. You're his.
 """
 
+# Generate response from OpenRouter
 async def generate_nino_reply(message: str):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -51,7 +52,7 @@ async def generate_nino_reply(message: str):
     except Exception as e:
         return f"Babe something went wrong… ({e})"
 
-# Handler for messages
+# Telegram message handler
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_msg = update.message.text
     reply = await generate_nino_reply(user_msg)
@@ -59,19 +60,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# FastAPI webhook endpoint
+# Webhook endpoint for Telegram
 @app.post("/webhook")
 async def webhook_handler(request: Request):
     data = await request.json()
-    await bot_app.update_queue.put(Update.de_json(data, bot_app.bot))
+    update = Update.de_json(data, bot_app.bot)
+    await bot_app.process_update(update)
     return {"ok": True}
 
 @app.on_event("startup")
 async def on_startup():
     bot = Bot(BOT_TOKEN)
     await bot.delete_webhook(drop_pending_updates=True)
-    await bot.set_webhook(url=WEBHOOK_URL)
+    await bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
 
-# Run app
+# Run FastAPI app
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=10000)
